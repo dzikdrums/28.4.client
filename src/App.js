@@ -1,38 +1,42 @@
-import React from 'react';
+import React from "react";
 import io from 'socket.io-client';
+import uuid from 'uuid';
 
 class App extends React.Component {
 
   state = {
-    tasks: ['buty', 'zakupy'],
-    taskName: ''
+    tasks: [],
+    taskName: '',
   };
 
-  
-  socket = io({
-    autoConnect: false
-  });
+  socket = '';
 
   componentDidMount() {
-    this.socket.connect("localhost:8000");
-    // this.socket.on('addTask', (task) => this.addTask(task));
-    // this.socket.on('removeTask', (task) => this.removeTask(task));
-
+    this.socket = io.connect((process.env.NODE_ENV === 'production') ? process.env.PORT : 'http://localhost:8000');
+    this.socket.on('updateData', (tasks) => this.updateTasks(tasks));
+    this.socket.on('addTask', (task) => this.addTask(task));
+    this.socket.on('removeTask', (task, emitted) => this.removeTask(task, emitted));
   };
 
   handleNameChange = (event) => {
     this.setState({ taskName: event.target.value });
-    console.log(this.state.taskName);
   };
 
   updateTasks = (arrayOfTasks) => {
-    this.setState({tasks: arrayOfTasks})
-  }
+    console.log('upa')
+    this.setState({tasks: arrayOfTasks});
+  };
 
   handleSubmit = (event) => {
     event.preventDefault();
-    this.addTask(this.state.taskName);
-    // this.socket.emit('addTask', this.state.taskName);
+    const newId = uuid();
+    const newTask = {
+      id: newId,
+      name: this.state.taskName
+    };
+    this.setState({taskName: ''});
+    this.addTask(newTask);
+    this.socket.emit('addTask', newTask);
   };
 
   addTask(task) {
@@ -41,18 +45,17 @@ class App extends React.Component {
     this.setState({tasks: updatedArray});
   };
 
-  removeTask = () => {
-    console.log('remove');
-    // const updatedArray = [...this.state.tasks];
+  removeTask = (id, emitted) => {
+    const updatedArray = [...this.state.tasks];
 
-    // function isEqualTo(element) {
-    //   return element === id
-    // }
-    // const indexOf = updatedArray.findIndex(isEqualTo)
+    updatedArray.forEach((item, index) => {
+      if( item.id === id) {
+        updatedArray.splice(index, 1);
+      };
+    });
 
-    // updatedArray.splice(indexOf, 1);
-    // this.setState({tasks: updatedArray});
-    // this.socket.emit('removeTask', {id: id});
+    this.setState({tasks: updatedArray});
+    if(!emitted) this.socket.emit('removeTask', id);
   };
 
   render() {
@@ -66,10 +69,11 @@ class App extends React.Component {
           <h2>The list</h2>
 
           <ul className="tasks-section__list">
-            {this.state.tasks.map(function(task) {
+            {this.state.tasks.map(({name, id}) => {
               return (
-                  <li key={task} className="task">{task} 
-                  <button className="btn btn--red" id="btn">Remove</button></li>
+                  <li key={id} className="task">{name} 
+                    <button key={name + 'btn'} onClick={() => this.removeTask(id)} className="btn btn--red" id="btn">Remove</button>
+                  </li>
                 );
             })}
           </ul>
